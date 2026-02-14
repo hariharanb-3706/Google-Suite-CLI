@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+env/
+.env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Google API / Credentials
+.config/
+config/credentials.json
+config/token.json
+credentials.json
+token.json
+*.json
+!requirements.json
+!setup.json
+!package.json
+
+# Cache
+.cache/
+cache/
+
+# IDE
+.vscode/
+.idea/
+
+# Local data
+data/
+*.log
