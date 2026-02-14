@@ -6,6 +6,7 @@ import os
 import time
 import sys
 import shutil
+import subprocess
 from typing import Dict, List, Any, Optional
 import click
 from colorama import init, Fore, Style, Back
@@ -276,7 +277,7 @@ class InteractiveMenu:
             },
             '2': {  # Gmail
                 'list': f'{python_exe} -m gsuite_cli.cli gmail list',
-                'send': f'{python_exe} -m gsuite_cli.cli gmail send --help',
+                'send': f'{python_exe} -m gsuite_cli.cli gmail send',
                 'search': f'{python_exe} -m gsuite_cli.cli gmail search --help',
                 'get': f'{python_exe} -m gsuite_cli.cli gmail get'
             },
@@ -329,13 +330,30 @@ class InteractiveMenu:
                 else:
                     self.show_error("ID is required")
                     return
+            
+            # If command is 'send', prompt for fields
+            elif command == 'send':
+                print(Fore.BLACK + "To: ", end="")
+                to = input().strip()
+                print(Fore.BLACK + "Subject: ", end="")
+                subject = input().strip()
+                print(Fore.BLACK + "Body: ", end="")
+                body = input().strip()
+                
+                if to and subject and body:
+                    cli_command = f'{cli_command} --to "{to}" --subject "{subject}" --body "{body}"'
+                else:
+                    self.show_error("To, Subject, and Body are all required")
+                    return
 
             print(Fore.BLACK + f"💡 Running: {cli_command}")
             print()
             
             # Execute the command
             try:
-                os.system(cli_command)
+                # Use subprocess.call with shell=True but don't wrap in extra quotes
+                # as python_exe is already quoted.
+                subprocess.call(cli_command, shell=True)
             except Exception as e:
                 print(Fore.RED + f"❌ Error: {e}")
         else:
