@@ -7,6 +7,7 @@ import logging
 from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime, timedelta
 import json
+from google import genai
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +15,10 @@ logger = logging.getLogger(__name__)
 class NaturalLanguageProcessor:
     """AI-powered natural language command processor"""
     
-    def __init__(self):
+    def __init__(self, gemini_key: str = ''):
+        self.gemini_key = gemini_key
+        self._client = None
+        self.model_name = "gemini-1.5-flash"
         self.intent_patterns = {
             'calendar_search': [
                 r'(?i)(show|find|search|list).*calendar',
@@ -85,6 +89,11 @@ class NaturalLanguageProcessor:
         Returns:
             Dict with intent, entities, and parameters
         """
+        if self.gemini_key:
+            ai_parsed = self._parse_with_gemini(query)
+            if ai_parsed:
+                return ai_parsed
+
         query = query.strip()
         
         # Detect intent
@@ -111,6 +120,44 @@ class NaturalLanguageProcessor:
                 if re.search(pattern, query):
                     return intent
         return 'unknown'
+
+    def _parse_with_gemini(self, query: str) -> Optional[Dict[str, Any]]:
+        """Use Gemini to parse intent and entities with high accuracy"""
+        if not self.gemini_key:
+            return None
+        
+        try:
+            if self._client is None:
+                self._client = genai.Client(api_key=self.gemini_key)
+            
+            prompt = f"""
+            Parse the following GSuite CLI command query into a JSON object.
+            Query: "{query}"
+            Current Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+            
+            Return ONLY a JSON object with these fields:
+            - intent: (one of: calendar_search, email_search, email_send, calendar_create, analytics, summarize, docs_search, docs_create, unknown)
+            - entities: {{ "time": ..., "emails": [], "people": [], "keywords": [] }}
+            - params: {{ ... }} (specific arguments for the 'gs' CLI command)
+            - confidence: (float 0.0 to 1.0)
+            - suggested_command: (the actual 'gs' command string)
+            """
+            
+            response = self._client.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config={'response_mime_type': 'application/json'}
+            )
+            
+            if response and response.text:
+                data = json.loads(response.text)
+                data['original_query'] = query
+                return data
+            return None
+            
+        except Exception as e:
+            logger.error(f"Gemini parsing error: {e}")
+            return None
     
     def _extract_entities(self, query: str) -> Dict[str, Any]:
         """Extract entities like dates, people, keywords"""

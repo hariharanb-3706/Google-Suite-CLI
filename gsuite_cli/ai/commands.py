@@ -31,7 +31,8 @@ def ai():
 @click.pass_context
 def ai_ask(ctx, query, execute, format):
     """Ask AI in natural language and get command suggestions"""
-    nlp = NaturalLanguageProcessor()
+    config = ctx.obj['config_manager'].config.ai
+    nlp = NaturalLanguageProcessor(gemini_key=config.gemini_api_key)
     
     print_header("🤖 AI Command Assistant")
     print(f"Query: {query}")
@@ -41,67 +42,41 @@ def ai_ask(ctx, query, execute, format):
     parsed = nlp.parse_command(query)
     
     print_section("Intent Analysis")
-    print(f"Intent: {parsed['intent']}")
-    print(f"Confidence: {parsed['confidence'] * 100}%")
+    print(f"Intent: {parsed.get('intent', 'unknown')}")
+    print(f"Confidence: {parsed.get('confidence', 0) * 100}%")
     
-    if parsed['entities']:
+    if parsed.get('entities'):
         print("Entities found:")
         for entity_type, value in parsed['entities'].items():
-            if isinstance(value, list):
-                print(f"  {entity_type}: {', '.join(str(v) for v in value)}")
-            else:
-                print(f"  {entity_type}: {value}")
+            if value:
+                if isinstance(value, list):
+                    print(f"  {entity_type}: {', '.join(str(v) for v in value)}")
+                else:
+                    print(f"  {entity_type}: {value}")
     
     print()
     
     # Suggest command
-    suggested_command = nlp.suggest_command(query)
+    suggested_command = parsed.get('suggested_command') or nlp.suggest_command(query)
     print_section("Suggested Command")
     print(f"$ {suggested_command}")
     
     # Execute if requested
-    if execute and not suggested_command.startswith('#'):
+    if execute and suggested_command and not suggested_command.startswith('#'):
         print()
         print_section("Executing Command")
         try:
-            # This is a simplified execution - in production, you'd want proper command routing
-            if 'calendar' in suggested_command:
-                # Execute calendar command
-                service = CalendarService(ctx.obj['oauth_manager'], ctx.obj.get('cache_manager'))
-                events = service.list_events()
-                if events:
-                    formatted_events = []
-                    for event in events[:10]:  # Limit to 10 for demo
-                        formatted_events.append({
-                            'ID': event['id'][:15] + '...',
-                            'Title': event['summary'][:30],
-                            'Start': event['start'][:10],
-                            'End': event['end'][:10]
-                        })
-                    output = format_output(formatted_events, format_type=format)
-                    print(output)
-                else:
-                    print_info("No events found")
+            import subprocess
+            import sys
             
-            elif 'gmail' in suggested_command:
-                # Execute gmail command
-                service = GmailService(ctx.obj['oauth_manager'], ctx.obj.get('cache_manager'))
-                emails = service.list_messages(max_results=10)
-                if emails:
-                    formatted_emails = []
-                    for email in emails:
-                        formatted_emails.append({
-                            'ID': email['id'][:15] + '...',
-                            'From': email['from'][:30],
-                            'Subject': email['subject'][:40],
-                            'Date': email['date'][:10],
-                            'Snippet': email['snippet'][:50] + '...'
-                        })
-                    output = format_output(formatted_emails, format_type=format)
-                    print(output)
-                else:
-                    print_info("No emails found")
-            
+            # Map 'gs' to the actual python module call if needed
+            if suggested_command.startswith('gs '):
+                actual_cmd = suggested_command.replace('gs ', f'"{sys.executable}" -m gsuite_cli.cli ', 1)
+            else:
+                actual_cmd = suggested_command
+                
+            print_info(f"Running: {actual_cmd}")
+            subprocess.call(actual_cmd, shell=True)
             print_success("Command executed successfully!")
             
         except Exception as e:
@@ -114,7 +89,8 @@ def ai_ask(ctx, query, execute, format):
 @click.pass_context
 def ai_summarize(ctx, period, format):
     """AI-powered summary of your emails and calendar"""
-    summarizer = EmailSummarizer()
+    config = ctx.obj['config_manager'].config.ai
+    summarizer = EmailSummarizer(gemini_key=config.gemini_api_key)
     
     print_header("📊 AI Summary")
     print(f"Period: {period}")
@@ -263,7 +239,8 @@ def ai_analytics(ctx, type_, period, format):
 @click.pass_context
 def ai_smart_reply(ctx, email_id, count):
     """Generate AI-powered smart replies for an email"""
-    summarizer = EmailSummarizer()
+    config = ctx.obj['config_manager'].config.ai
+    summarizer = EmailSummarizer(gemini_key=config.gemini_api_key)
     
     print_header("🤖 Smart Reply Generator")
     print(f"Email ID: {email_id}")

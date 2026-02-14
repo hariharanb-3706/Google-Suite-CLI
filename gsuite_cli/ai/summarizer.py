@@ -8,13 +8,19 @@ from typing import List, Dict, Any, Optional
 from collections import Counter
 import math
 
+from google import genai
+import json
+
 logger = logging.getLogger(__name__)
 
 
 class EmailSummarizer:
     """AI-powered email summarization and smart reply generation"""
     
-    def __init__(self):
+    def __init__(self, gemini_key: str = ''):
+        self.gemini_key = gemini_key
+        self._client = None
+        self.model_name = "gemini-1.5-flash"
         self.urgency_keywords = {
             'urgent', 'asap', 'immediately', 'emergency', 'critical', 'important',
             'deadline', 'overdue', 'action required', 'response needed', 'urgent action'
@@ -40,6 +46,11 @@ class EmailSummarizer:
         Returns:
             Dictionary with summary, sentiment, urgency, and smart replies
         """
+        if self.gemini_key:
+            ai_summary = self._summarize_with_gemini(email)
+            if ai_summary:
+                return ai_summary
+
         subject = email.get('subject', '')
         body = email.get('snippet', '') or email.get('body', '')
         sender = email.get('from', '')
@@ -61,6 +72,44 @@ class EmailSummarizer:
             'smart_replies': smart_replies,
             'key_points': key_points
         }
+
+    def _summarize_with_gemini(self, email: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Use Gemini for high-quality email summarization"""
+        try:
+            if self._client is None:
+                self._client = genai.Client(api_key=self.gemini_key)
+            
+            sender = email.get('from', 'Unknown')
+            subject = email.get('subject', 'No Subject')
+            body = email.get('body', '') or email.get('snippet', '')
+            
+            prompt = f"""
+            Summarize this email professionally:
+            From: {sender}
+            Subject: {subject}
+            Body: {body[:2000]}
+            
+            Return ONLY a JSON object with:
+            - summary: (concise 1-sentence summary)
+            - sentiment: (float -1.0 to 1.0)
+            - urgency: (float 0.0 to 1.0)
+            - action_items: [list of actions needed]
+            - smart_replies: [3 short reply suggestions]
+            - key_points: [list of 3 key facts]
+            """
+            
+            response = self._client.models.generate_content(
+                model=self.model_name,
+                contents=prompt,
+                config={'response_mime_type': 'application/json'}
+            )
+            
+            if response and response.text:
+                return json.loads(response.text)
+            return None
+        except Exception as e:
+            logger.error(f"Gemini summarization error: {e}")
+            return None
     
     def summarize_multiple_emails(self, emails: List[Dict[str, Any]]) -> Dict[str, Any]:
         """

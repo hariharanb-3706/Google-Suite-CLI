@@ -13,8 +13,21 @@ class AIChatBot:
     
     def __init__(self, gemini_key: str = ''):
         self.gemini_key = gemini_key
-        self.model_name = "gemini-3-flash-preview"
+        self.model_name = "gemini-1.5-flash" # Use standard flash model for speed/efficiency
         self._client = None
+        self.system_prompt = """
+        You are the GSuite CLI AI assistant, a professional and efficient helper designed to manage 
+        Google Workspace services (Calendar, Gmail, Sheets, Drive, Docs, Tasks) via the command line.
+        
+        Your goals:
+        1. Help users interact with their Google services accurately.
+        2. Provide concise, professional, and actionable advice.
+        3. Suggest 'gs' CLI commands when appropriate.
+        4. Be context-aware and polite.
+        
+        Current environment: Windows CLI.
+        Tool name: GSuite CLI (alias: gs).
+        """
     
     @property
     def client(self):
@@ -34,7 +47,7 @@ class AIChatBot:
                 
             response = self.client.models.generate_content(
                 model=self.model_name,
-                contents=message
+                contents=[self.system_prompt, message]
             )
             
             if response and response.text:
@@ -43,6 +56,4 @@ class AIChatBot:
             
         except Exception as e:
             logger.error(f"Gemini SDK error: {e}")
-            # If the specific v3 preview model isn't available, try a fallback if it makes sense, 
-            # but usually for a preview user, we want to show the specific error.
             return f"❌ Gemini AI Error: {str(e)}"
